@@ -1,7 +1,7 @@
 from typing import Callable
 
 
-def testException(test_func: Callable, except_type: Exception):
+def exceptionTest(test_func: Callable, except_type: Exception):
 
     was_thrown = False
     try:

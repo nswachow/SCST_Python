@@ -2,11 +2,11 @@ import numpy as np
 from scipy.stats import entropy
 from functools import partial
 
-from model_utils.pmf import PMF, JointPMF, ConditionalPMF
-from test_tools import testException
+from process_utils.pmf import PMF, JointPMF, ConditionalPMF
+from test_tools import exceptionTest
 
 
-def test_pmf():
+def testPMF():
 
     LOW = 0
     HIGH = 10
@@ -26,7 +26,7 @@ def test_pmf():
     assert np.isclose(entropy, pmf.entropy)
 
 
-def test_joint_pmf():
+def testJointPMF():
 
     LOW = 0
     HIGH = 10
@@ -56,11 +56,11 @@ def test_joint_pmf():
     assert np.isclose(mi, joint_pmf.mutual_information)
 
     # Should fail to create JointPMF with invalid inputs
-    testException(partial(JointPMF, x_array=np.arange(1), y_array=np.arange(2)),
+    exceptionTest(partial(JointPMF, x_array=np.arange(1), y_array=np.arange(2)),
                   AssertionError)
 
 
-def test_conditional_pmf():
+def testConditionalPMF():
 
     LOW = 0
     HIGH = 3
@@ -84,6 +84,6 @@ def test_conditional_pmf():
 
 
 if __name__ == '__main__':
-    test_pmf()
-    test_joint_pmf()
-    test_conditional_pmf()
+    testPMF()
+    testJointPMF()
+    testConditionalPMF()
