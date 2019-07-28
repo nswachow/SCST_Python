@@ -1,12 +1,14 @@
-from typing import Tuple
+from typing import Tuple, Dict, Union, List
 import numpy as np
+from collections import defaultdict
 
 
 VECT_LENGTH = 33
 MAX_SECONDS = 86400  # Number of seconds per day
 
 
-def _processTextLines(file_path: str, start_offset: int, end_offset: int) -> np.ndarray:
+def _processTextLines(file_path: str, start_offset: int,
+                      end_offset: Union[int, float]) -> np.ndarray:
 
     array_list = []
     with open(file_path, 'r') as spl_file:
@@ -67,9 +69,34 @@ def getTruthArray(file_path: str) -> Tuple[np.ndarray, int, int]:
 
     hour_strings = file_path.split('.')[0].split('h')[-1].split('-')
     start_second, end_second = (3600 * float(val) for val in hour_strings)
-    truth_array = _processTextLines(file_path, 0, end_second - start_second).flatten()
+    truth_array = _processTextLines(file_path, 0, end_second - start_second).flatten().astype(int)
 
     if len(truth_array) != end_second - start_second:
         print("Warning: only extracted {} seconds of truth data.".format(len(truth_array)))
 
     return truth_array, start_second, end_second
+
+
+def getTrainEvents(train_file_path: str, data_file_path: str) -> Dict[int, List[np.ndarray]]:
+    '''
+    Extracts events of intrest (typically to use for training), each consisting of a sequence of
+    vectors (columns of a matrix), from a vector sequence stored at ``data_file_path``, using the
+    events parameters stored in ``train_file_path``.
+
+    :param train_file_path: Absolute path to the file containing training event parameters.
+    :param data_file_path: Absolute path to the NVSPL data file.
+
+    :return Dictionary with keys that are class labels and values that are lists of vector sequences
+        representing tabulated events.
+    '''
+
+    data_matrix = getSPLMatrix(data_file_path)
+    train_param_matrix = _processTextLines(train_file_path, 0, np.inf).astype(int)
+
+    event_dict = defaultdict(list)
+    for event_idx in range(train_param_matrix.shape[1]):
+        start_time, end_time, label = train_param_matrix[:, event_idx]
+        event_matrix = data_matrix[:, start_time:end_time+1]
+        event_dict[label].append(event_matrix)
+
+    return event_dict

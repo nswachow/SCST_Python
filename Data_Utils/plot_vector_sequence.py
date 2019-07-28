@@ -89,9 +89,7 @@ if __name__ == '__main__':
 
     truth_array, start_second, end_second = getTruthArray(TRUTH_PATH)
     data_matrix = getSPLMatrix(DATA_PATH, start_second, end_second)
-
     est_array = np.random.randint(low=0, high=3, size=len(truth_array))
 
     file_name = DATA_PATH.split('.txt')[0].split('/')[-1]
-
     plotSequence(data_matrix, truth_array, est_array, start_second, file_name)
