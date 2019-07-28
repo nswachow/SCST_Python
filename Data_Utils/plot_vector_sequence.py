@@ -2,8 +2,9 @@ from typing import List, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
+import argparse
 
-from read_text_data import getSPLMatrix, getTruthArray
+from read_text_data import getSPLMatrix, getTruthArray, MAX_SECONDS
 
 
 def _plotIDStrip(ax: matplotlib.axes, id_array: np.ndarray, label: str,
@@ -17,8 +18,9 @@ def _plotIDStrip(ax: matplotlib.axes, id_array: np.ndarray, label: str,
     ax.get_yaxis().set_ticks([])
 
 
-def plotSequence(data_matrix: np.ndarray, truth_array: Optional[np.ndarray],
-                 est_array: Optional[np.ndarray], start_second: int, file_name: str) -> None:
+def plotSequence(data_matrix: np.ndarray, start_second: int, file_name: str,
+                 truth_array: Optional[np.ndarray]=None,
+                 est_array: Optional[np.ndarray]=None) -> None:
     '''
     Plot 1/3 octave SPL data along with (optionally) estimated and true classification labels.
 
@@ -84,12 +86,21 @@ def plotSequence(data_matrix: np.ndarray, truth_array: Optional[np.ndarray],
 
 if __name__ == '__main__':
 
-    DATA_PATH = "GRSA001/NVSPL_GRSA001_2008_09_25.txt"
-    TRUTH_PATH = "GRSA001/TRUTH_GRSA001_2008_09_25_h16-18.txt"
+    parser = argparse.ArgumentParser()
 
-    truth_array, start_second, end_second = getTruthArray(TRUTH_PATH)
-    data_matrix = getSPLMatrix(DATA_PATH, start_second, end_second)
-    est_array = np.random.randint(low=0, high=3, size=len(truth_array))
+    parser.add_argument("--data_path", default="GRSA001/NVSPL_GRSA001_2008_09_25.txt", type=str)
+    parser.add_argument("--truth_path", default="GRSA001/TRUTH_GRSA001_2008_09_25_h16-18.txt",
+                        type=str)
+    parser.add_argument("--start_second", default=0, type=int)
+    parser.add_argument("--end_second", default=MAX_SECONDS, type=int)
+    args = parser.parse_args()
 
-    file_name = DATA_PATH.split('.txt')[0].split('/')[-1]
-    plotSequence(data_matrix, truth_array, est_array, start_second, file_name)
+    if args.truth_path is not None:
+        truth_array, args.start_second, end_second = getTruthArray(args.truth_path)
+        data_matrix = getSPLMatrix(args.data_path, args.start_second, end_second)
+    else:
+        truth_array = None
+        data_matrix = getSPLMatrix(args.data_path, args.start_second, args.end_second)
+
+    file_name = args.data_path.split('.txt')[0].split('/')[-1]
+    plotSequence(data_matrix, args.start_second, file_name, truth_array, None)
