@@ -38,7 +38,7 @@ class SequenceIndex:
 
 class SCSTElementModel:
     '''
-    For for a single vector element in the SCST classifier. Can be used to calculate conditional
+    Models a single vector element in the SCST classifier. Can be used to calculate conditional
     log-likelihoods for a value given a set of dependent values, which in turn can be used to
     calculate the conditional log-likelihood of an entire vector.
     '''
@@ -61,6 +61,8 @@ class SCSTElementModel:
         :param num_pri_obs: Number of observations at the beginning of each event to use for finding
             prior probabilities. The entirety of each event is used if this value is None.
         '''
+
+        # TODO: move many of these asserts to the SCSTClassModel
         assert len(train_event_list) > 0
         assert (element_idx >=0) and (element_idx < train_event_list[0].shape[0])
         assert order >= 0
@@ -79,12 +81,14 @@ class SCSTElementModel:
 
     def logLikelihood(self, data_matrix: np.ndarray) -> float:
         '''
-        Generate the log-likelihood of this model given a vector sequence.
+        Generate the log-likelihood of this element model given a vector sequence.
 
         :param data_matrix: Columns are feature vectors ordered by time, with the first column
-            being the "oldest" and the last column being the "current" vector.
+            being the "oldest" and the last column being the "current" vector, an element of which
+            we shall evaluate the likelihood of this model with respect to.
 
-        :return: The conditional log-likelihood of this model given the sequence ``data_matrix``.
+        :return: The conditional log-likelihood of a given element in the last column vector in
+            ``data_matrix`` given this model and previous column vectors ``data_matrix``.
         '''
 
         assert data_matrix.shape == (self._vect_dim, self._order + 1)
@@ -99,7 +103,7 @@ class SCSTElementModel:
 
         if likelihood < float_info.min:
             # Avoid numerical issue in case min_prob == 0
-            return float_info.min
+            return -float_info.max
         else:
             return np.log(likelihood)
 
@@ -187,3 +191,47 @@ class SCSTElementModel:
             new_event_list.append(event[:, :end_idx])
 
         return new_event_list
+
+
+class SCSTVectorModel:
+    '''
+    Models an entire vector in the SCST classifier. Can be used to calculate conditional
+    log-likelihoods for a vector given previous vectors in the sequence.
+    '''
+
+    def __init__(self, train_event_list: List[np.ndarray], order: int, max_num_depend: int,
+                 mi_thresh: float, min_prob: float, max_value: int, num_pri_obs: Optional[int]):
+
+        vect_dim = train_event_list[0].shape[0]
+
+        self._model_list = []
+        for element_idx in range(vect_dim):
+            element_model = SCSTElementModel(train_event_list, element_idx, order, max_num_depend,
+                                             mi_thresh, min_prob, max_value, num_pri_obs)
+            self._model_list.append(element_model)
+
+    def logLikelihood(self, data_matrix: np.ndarray) -> float:
+        '''
+        Generate the log-likelihood of this vector model given a vector sequence.
+
+        :param data_matrix: Columns are feature vectors ordered by time, with the first column
+            being the "oldest" and the last column being the "current" vector that we shall
+            evaluate the likelihood of this model with respect to.
+
+        :return: The conditional log-likelihood of the last column vector in ``data_matrix`` given
+            this model and previous column vectors ``data_matrix``.
+        '''
+
+        log_likelihood = 0.0
+        for model in self._model_list:
+            log_likelihood += model.logLikelihood(data_matrix)
+
+        return log_likelihood
+
+
+class SCSTClassModel:
+    pass
+
+
+class SCSTClassifier:
+    pass
