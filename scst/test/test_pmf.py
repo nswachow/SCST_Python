@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import entropy
 from functools import partial
 
-from process_utils.pmf import ContiguousPMF, JointContiguousPMF, ConditionalContiguousPMF
+from scst.pmf import ContiguousPMF, JointContiguousPMF, ConditionalContiguousPMF
 from test_tools import exceptionTest
 
 

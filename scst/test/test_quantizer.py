@@ -1,6 +1,6 @@
 import numpy as np
 
-from process_utils.quantizer import LloydMaxQuantizer
+from scst.quantizer import LloydMaxQuantizer
 
 
 def testLloydMaxQuantizer():

@@ -2,7 +2,7 @@ import numpy as np
 from typing import List, Tuple, Optional
 from sys import float_info
 
-from process_utils.pmf import JointContiguousPMF, ConditionalContiguousPMF
+from scst.pmf import JointContiguousPMF, ConditionalContiguousPMF
 
 
 class SequenceIndex:
