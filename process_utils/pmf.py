@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.stats
 from collections import defaultdict
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Iterable
 
 
 class ContiguousPMF:
@@ -208,7 +208,7 @@ class ConditionalContiguousPMF:
         '''
         return self._num_depend
 
-    def __call__(self, value: float, depend_values: Tuple[float]) -> float:
+    def __call__(self, value: float, depend_values: Tuple[Iterable[float]]) -> float:
         '''
         Evaluate the conditional PMF according to the inputs. Return a uniform probability on the
         interval [0, max_value] if there is no PMF associated with the input ``depend_values``.
