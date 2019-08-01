@@ -44,8 +44,7 @@ class SCSTElementModel:
     '''
 
     def __init__(self, train_event_list: List[np.ndarray], element_idx: int, order: int,
-                 max_num_depend: int, mi_thresh: float, min_prob: float, max_value: int,
-                 num_pri_obs: Optional[int]):
+                 max_num_depend: int, mi_thresh: float, min_prob: float, max_value: int):
         '''
         :param train_event_list: Element are matrices representing (quantized) vector sequences
             (columns of each matrix) associated with a specific class label.
@@ -58,23 +57,18 @@ class SCSTElementModel:
             aren't output when novel data is encountered.
         :param max_value: Maximum value that can be observed for any element in any event in
             ``train_event_list``.
-        :param num_pri_obs: Number of observations at the beginning of each event to use for finding
-            prior probabilities. The entirety of each event is used if this value is None.
         '''
-
-        # TODO: move many of these asserts to the SCSTClassModel
-        assert len(train_event_list) > 0
-        assert (element_idx >=0) and (element_idx < train_event_list[0].shape[0])
-        assert order >= 0
-        assert max_num_depend >= 0
-        assert mi_thresh >= 0
-        assert num_pri_obs is None or num_pri_obs >= 0
 
         self._element_idx = element_idx
         self._vect_dim = train_event_list[0].shape[0]
         self._order = order
 
-        train_event_list = SCSTElementModel._getPriorEventList(train_event_list, num_pri_obs)
+        assert len(train_event_list) > 0
+        assert (element_idx >= 0) and (element_idx < self._vect_dim)
+        assert order >= 0
+        assert max_num_depend >= 0
+        assert mi_thresh >= 0
+
         self._depend_idx = self._learnDependentIndicies(
             train_event_list, max_num_depend, mi_thresh, max_value)
         self._pmf = self._learnConditionalPMF(train_event_list, min_prob, max_value)
@@ -102,8 +96,8 @@ class SCSTElementModel:
         likelihood = self._pmf(data_matrix[self._element_idx, -1], depend_tuple)
 
         if likelihood < float_info.min:
-            # Avoid numerical issue in case min_prob == 0
-            return -float_info.max
+            # Avoid warning associated with computing log(0)
+            return -np.inf
         else:
             return np.log(likelihood)
 
@@ -174,6 +168,124 @@ class SCSTElementModel:
 
         return all_samples
 
+
+class SCSTVectorModel:
+    '''
+    Models an entire vector in the SCST classifier. Can be used to calculate conditional
+    log-likelihoods for a vector given previous vectors in the sequence.
+    '''
+
+    def __init__(self, train_event_list: List[np.ndarray], order: int, max_num_depend: int,
+                 mi_thresh: float, min_prob: float, max_value: int):
+        '''
+        :param train_event_list, element_idx, param order, max_num_depend, mi_thresh, min_prob,
+            max_value: See SCSTElementModel.__init__.
+        '''
+
+        assert len(train_event_list) > 0
+        assert order >= 0
+
+        self._vect_dim = train_event_list[0].shape[0]
+        self._order = order
+
+        self._model_list = []
+        for element_idx in range(self._vect_dim):
+            element_model = SCSTElementModel(train_event_list, element_idx, order, max_num_depend,
+                                             mi_thresh, min_prob, max_value)
+            self._model_list.append(element_model)
+
+    def logLikelihood(self, data_matrix: np.ndarray) -> float:
+        '''
+        Generate the log-likelihood of this vector model given a vector sequence.
+
+        :param data_matrix: Columns are feature vectors ordered by time, with the first column
+            being the "oldest" and the last column being the "current" vector that we shall
+            evaluate the likelihood of this model with respect to.
+
+        :return: The conditional log-likelihood of the last column vector in ``data_matrix`` given
+            this model and previous column vectors ``data_matrix``.
+        '''
+
+        assert data_matrix.shape == (self._vect_dim, self._order + 1)
+
+        log_likelihood = 0.0
+        for model in self._model_list:
+            log_likelihood += model.logLikelihood(data_matrix)
+
+        return log_likelihood
+
+
+class SCSTClassModel:
+    '''
+    Models an entire class of vector sequence signatures by extracting conditional distributions
+    for vector elements and their relationships to other elements in the same and previous vectors.
+    '''
+
+    def __init__(self, train_event_list: List[np.ndarray], max_num_depend: int, mi_thresh: float,
+                 min_prob: float, max_value: int, prior_only: bool, num_pri_obs: Optional[int]):
+        '''
+        :param train_event_list, element_idx, max_num_depend, mi_thresh, min_prob, max_value:
+            See SCSTElementModel.__init__.
+        :param prior_only: If True, then only a prior model will be trained, and the dependencies
+            between vectors in a sequence won't be exploited by this model.
+        :param num_pri_obs: Number of observations at the beginning of each event to use for finding
+            prior probabilities. The entirety of each event is used if this value is None.
+        '''
+
+        assert num_pri_obs is None or num_pri_obs >= 0
+        assert len(train_event_list) > 0
+
+        self._vect_dim = train_event_list[0].shape[0]
+        self._previous_vector = None
+        self._depend_model = None
+
+        if not prior_only:
+            # Assume first order vector dependency for simplicity. A P-order dependency requires P+1
+            # models.
+            self._depend_model = SCSTVectorModel(train_event_list, 1, max_num_depend, mi_thresh,
+                                                min_prob, max_value)
+
+            train_event_list = SCSTClassModel._getPriorEventList(train_event_list, num_pri_obs)
+
+        self._prior_model = SCSTVectorModel(train_event_list, 0, max_num_depend, mi_thresh,
+                                            min_prob, max_value)
+
+
+    def logLikelihood(self, feature_vector: np.ndarray) -> float:
+        '''
+        Calculate and return the log-likelihood of the input ``feature_vector``, given this model,
+        and previous vectors in the same sequence. It is assumed that the vectors processed by this
+        method are passed in the order they appear in a sequence, so that dependencies between them
+        can be exploited.
+
+        :param feature_vector: The next feature vector in the sequence.
+
+        :return: The log-likelihood of the input vector ``feature_vector``.
+        '''
+
+        assert len(feature_vector) == self._vect_dim
+
+        feature_vector = feature_vector.reshape((self._vect_dim, 1))
+
+        if self._previous_vector is None:
+            log_likelihood = self._prior_model.logLikelihood(feature_vector)
+        else:
+            log_likelihood = self._depend_model.logLikelihood(
+                np.concatenate((self._previous_vector, feature_vector), axis=1))
+
+        if self._depend_model is not None:
+            # Only keep the previous vector if this isn't a prior-only model
+            self._previous_vector = feature_vector
+
+        return log_likelihood
+
+    def reset(self) -> None:
+        '''
+        Reset this model by forcing it to use its prior distribution for calculating the next
+        log-likelihood.
+        '''
+        self._previous_vector = None
+
     @staticmethod
     def _getPriorEventList(train_event_list: List[np.ndarray],
                            num_pri_obs: Optional[int]) -> List[np.ndarray]:
@@ -193,45 +305,9 @@ class SCSTElementModel:
         return new_event_list
 
 
-class SCSTVectorModel:
-    '''
-    Models an entire vector in the SCST classifier. Can be used to calculate conditional
-    log-likelihoods for a vector given previous vectors in the sequence.
-    '''
-
-    def __init__(self, train_event_list: List[np.ndarray], order: int, max_num_depend: int,
-                 mi_thresh: float, min_prob: float, max_value: int, num_pri_obs: Optional[int]):
-
-        vect_dim = train_event_list[0].shape[0]
-
-        self._model_list = []
-        for element_idx in range(vect_dim):
-            element_model = SCSTElementModel(train_event_list, element_idx, order, max_num_depend,
-                                             mi_thresh, min_prob, max_value, num_pri_obs)
-            self._model_list.append(element_model)
-
-    def logLikelihood(self, data_matrix: np.ndarray) -> float:
-        '''
-        Generate the log-likelihood of this vector model given a vector sequence.
-
-        :param data_matrix: Columns are feature vectors ordered by time, with the first column
-            being the "oldest" and the last column being the "current" vector that we shall
-            evaluate the likelihood of this model with respect to.
-
-        :return: The conditional log-likelihood of the last column vector in ``data_matrix`` given
-            this model and previous column vectors ``data_matrix``.
-        '''
-
-        log_likelihood = 0.0
-        for model in self._model_list:
-            log_likelihood += model.logLikelihood(data_matrix)
-
-        return log_likelihood
-
-
-class SCSTClassModel:
-    pass
-
-
 class SCSTClassifier:
+    '''
+    Applies a set of ``SCSTClassModel`` to a sequence of vectors (one at a time) to assign class
+    labels to each vector as it is processed.
+    '''
     pass

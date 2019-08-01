@@ -1,7 +1,6 @@
 import numpy as np
-from sys import float_info
 
-from scst.scst_model import SCSTElementModel, SCSTVectorModel
+from scst.scst_model import SCSTElementModel, SCSTVectorModel, SCSTClassModel
 
 
 def testRandomModels():
@@ -20,14 +19,19 @@ def testRandomModels():
                         for _ in range(10)]
 
     element_model = SCSTElementModel(train_event_list, ELEMENT_IDX, ORDER, MAX_NUM_DEPEND,
-                                     MI_THRESH, MIN_PROB, MAX_VALUE, NUM_PRI_OBS)
+                                     MI_THRESH, MIN_PROB, MAX_VALUE)
     vector_model = SCSTVectorModel(train_event_list, ORDER, MAX_NUM_DEPEND, MI_THRESH, MIN_PROB,
-                                   MAX_VALUE, NUM_PRI_OBS)
+                                   MAX_VALUE)
+    class_model = SCSTClassModel(train_event_list, MAX_NUM_DEPEND, MI_THRESH, MIN_PROB, MAX_VALUE,
+                                 False, NUM_PRI_OBS)
 
     for _ in range(10):
         data_matrix = np.random.random((VECT_DIM, ORDER+1))
         element_model.logLikelihood(data_matrix)
         vector_model.logLikelihood(data_matrix)
+
+        for col_idx in range(data_matrix.shape[1]):
+            class_model.logLikelihood(data_matrix[:, col_idx])
 
 
 def testSimpleModels():
@@ -38,7 +42,7 @@ def testSimpleModels():
     MI_THRESH = 0.01
     MIN_PROB = 1e-4
     NUM_OBS = 10
-    NUM_PRI_OBS = None
+    NUM_PRI_OBS = 10
     ELEMENT_IDX = 1
 
     zero_array = np.zeros((1, NUM_OBS), dtype=int)
@@ -46,23 +50,33 @@ def testSimpleModels():
     train_event_list = [np.concatenate((zero_array, alt_array))]
 
     element_model = SCSTElementModel(train_event_list, ELEMENT_IDX, ORDER, MAX_NUM_DEPEND,
-                                     MI_THRESH, MIN_PROB, MAX_VALUE, NUM_PRI_OBS)
+                                     MI_THRESH, MIN_PROB, MAX_VALUE)
     vector_model = SCSTVectorModel(train_event_list, ORDER, MAX_NUM_DEPEND, MI_THRESH, MIN_PROB,
-                                   MAX_VALUE, NUM_PRI_OBS)
+                                   MAX_VALUE)
+    class_model = SCSTClassModel(train_event_list, MAX_NUM_DEPEND, MI_THRESH, MIN_PROB, MAX_VALUE,
+                                 False, NUM_PRI_OBS)
 
     data_matrix = np.array([[0, 0], [0, 1]])
-    log_likellihood = element_model.logLikelihood(data_matrix)
-    assert np.isclose(log_likellihood, np.log(1-MIN_PROB))
+    log_likelihood = element_model.logLikelihood(data_matrix)
+    assert np.isclose(log_likelihood, np.log(1-MIN_PROB))
 
-    log_likellihood = vector_model.logLikelihood(data_matrix)
-    assert np.isclose(log_likellihood, 2 * np.log(1-MIN_PROB))
+    log_likelihood = vector_model.logLikelihood(data_matrix)
+    assert np.isclose(log_likelihood, 2 * np.log(1-MIN_PROB))
+
+    for col_idx in range(data_matrix.shape[1]):
+        log_likelihood = class_model.logLikelihood(data_matrix[:, col_idx])
+    assert np.isclose(log_likelihood, 2 * np.log(1-MIN_PROB))
 
     data_matrix = np.array([[0, 1], [1, 1]])
-    log_likellihood = element_model.logLikelihood(data_matrix)
-    assert np.isclose(log_likellihood, np.log(MIN_PROB))
+    log_likelihood = element_model.logLikelihood(data_matrix)
+    assert np.isclose(log_likelihood, np.log(MIN_PROB))
 
-    log_likellihood = vector_model.logLikelihood(data_matrix)
-    assert np.isclose(log_likellihood, 2 * np.log(MIN_PROB))
+    log_likelihood = vector_model.logLikelihood(data_matrix)
+    assert np.isclose(log_likelihood, 2 * np.log(MIN_PROB))
+
+    for col_idx in range(data_matrix.shape[1]):
+        log_likelihood = class_model.logLikelihood(data_matrix[:, col_idx])
+    assert np.isclose(log_likelihood, 2 * np.log(MIN_PROB))
 
 
 if __name__ == '__main__':
