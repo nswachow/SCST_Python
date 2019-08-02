@@ -1,8 +1,11 @@
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Any, Type
 from sys import float_info
+from collections import defaultdict
+import copy
 
 from scst.pmf import JointContiguousPMF, ConditionalContiguousPMF
+from scst.quantizer import Quantizer
 
 
 class SequenceIndex:
@@ -178,8 +181,8 @@ class SCSTVectorModel:
     def __init__(self, train_event_list: List[np.ndarray], order: int, max_num_depend: int,
                  mi_thresh: float, min_prob: float, max_value: int):
         '''
-        :param train_event_list, element_idx, param order, max_num_depend, mi_thresh, min_prob,
-            max_value: See SCSTElementModel.__init__.
+        :param train_event_list, order, max_num_depend, mi_thresh, min_prob, max_value:
+            See SCSTElementModel.__init__.
         '''
 
         assert len(train_event_list) > 0
@@ -224,7 +227,7 @@ class SCSTClassModel:
     def __init__(self, train_event_list: List[np.ndarray], max_num_depend: int, mi_thresh: float,
                  min_prob: float, max_value: int, prior_only: bool, num_pri_obs: Optional[int]):
         '''
-        :param train_event_list, element_idx, max_num_depend, mi_thresh, min_prob, max_value:
+        :param train_event_list, max_num_depend, mi_thresh, min_prob, max_value:
             See SCSTElementModel.__init__.
         :param prior_only: If True, then only a prior model will be trained, and the dependencies
             between vectors in a sequence won't be exploited by this model.
@@ -310,4 +313,283 @@ class SCSTClassifier:
     Applies a set of ``SCSTClassModel`` to a sequence of vectors (one at a time) to assign class
     labels to each vector as it is processed.
     '''
-    pass
+
+    def __init__(self, train_event_dict: Dict[Any, List[np.ndarray]], noise_train_array: np.ndarray,
+                 quantizer_type: Type[Quantizer], num_quantize_levels: int, max_num_depend: int,
+                 mi_thresh: float, min_prob: float, num_pri_obs: Optional[int]):
+        '''
+        :param train_event_dict: Keys are class labels, and values are lists of training event
+            (column vector, sequences) to use for each corresponding class.
+        :param noise_train_array: A matrix with column vectors that are samples from noise alone
+            (no signatures of any class present).
+        :param quantizer_type: Name of quantizer class to use for discretizing vector elements
+            prior to classification.
+        :param num_quantize_levels: Number of quantization levels to use when training each vector
+            element quantizer.
+        :param max_num_depend, mi_thresh, and min_prob: See SCSTElementModel.__init__.
+        :param num_pri_obs: See SCSTClassModel.__init__.
+        '''
+
+        assert len(train_event_dict) > 0
+        assert 0 not in train_event_dict, "Label 0 reserved for noise-alone hypothesis"
+        assert num_quantize_levels > 0
+
+        class_train_list = next(iter(train_event_dict.values()))
+        self._vect_dim = class_train_list[0].shape[0]
+
+        self._quantizer_list = self._getQuantizerList(train_event_dict, noise_train_array,
+                                                      quantizer_type, num_quantize_levels)
+
+        self._model_dict, self._noise_model = self._getClassModels(
+            train_event_dict, noise_train_array, num_quantize_levels-1, max_num_depend, mi_thresh,
+            min_prob, num_pri_obs)
+
+        self.reset()
+
+    def reset(self) -> None:
+        '''
+        Called when the user has finished analyzing a given sequence and would like to analyze a
+        new one, with reinitialized test statistics.
+        '''
+
+        # See properties with the same names for an explanation on the purpose of each member.
+        self._class_labels = []
+        self._signal_llrs = defaultdict(list)
+        self._signal_updates = defaultdict(list)
+        self._signal_likelihoods = defaultdict(list)
+        self._noise_llrs = defaultdict(list)
+        self._noise_updates = defaultdict(list)
+        self._noise_likelihoods = []
+
+        # Ensure all models are reinitialized to use their priors
+        for model in self._model_dict.values():
+            model.reset()
+
+        self._detecting_signal = True
+
+    def classify(self, feature_vector: np.ndarray, sig_thresh: float, noise_thresh: float) -> Any:
+        '''
+        Applies a set of SCSTClassModel to the input ``feature_vector`` to generate and return a
+        class label. Class labels are assigned based on cumulative log-likelihood ratios for each
+        model, meaning this is a sequential process where the test statistics used to assign
+        class labels are constantly updated as new vectors are processed.
+
+        :param feature_vector: The next feature vector in the sequence.
+        :param sig_thresh: Cumulative LLR threshold, above which a signal is detected during a
+            quiescent period.
+        :param noise_thresh: Cumulative inverse LLR threshold, above which noise-only is declared
+            during a signal period.
+
+        :return: The class label assigned to ``feature_vector``, which will be one of the keys of
+            the dictionary in the constructor input ``train_event_dict``.
+        '''
+
+        assert len(feature_vector) == self._vect_dim
+
+        feature_vector = self._quantizeFeatureVector(feature_vector)
+        max_likelihood_class = self._updateLikelihoods(feature_vector)
+
+        if self._detecting_signal:
+            if self._signal_llrs[max_likelihood_class][-1] > sig_thresh:
+                self._detecting_signal = False
+
+        elif self._noise_llrs[max_likelihood_class][-1] > noise_thresh:
+
+            self._detecting_signal = True
+
+            # Reset the LLR test statistics and look for prior state vectors again
+            for class_label in self._model_dict.keys():
+                self._model_dict[class_label].reset()
+                self._signal_llrs[class_label][-1] = 0.0
+
+        if self._detecting_signal:
+            self._class_labels.append(0)  # Noise alone hypothesis accepted
+        else:
+            self._class_labels.append(max_likelihood_class)  # Signal hypothesis accepted
+
+        return self._class_labels[-1]
+
+    @property
+    def class_labels(self) -> List[Any]:
+        '''
+        A list of the class labels assigned to all the vectors processed thus far.
+        '''
+        return copy.copy(self._class_labels)
+
+    @property
+    def signal_llrs(self) -> Dict[Any, float]:
+        '''
+        Cumulative LLR used to detect signals (keyed by class label).
+        '''
+        return dict(self._signal_llrs)
+
+    @property
+    def signal_updates(self) -> Dict[Any, float]:
+        '''
+        Statistic used to update corresponding self._sig_llr_list at the same time (keyed by class
+        label).
+        '''
+        return dict(self._signal_updates)
+
+    @property
+    def signal_likelihoods(self) -> Dict[Any, float]:
+        '''
+        Log-likelihood of each signal model. Used with self.noise_likelihoods to calculate the
+        corresponding self.sig_updates at the same time (keyed by class label).
+        '''
+        return dict(self._signal_likelihoods)
+
+    @property
+    def noise_llrs(self) -> Dict[Any, float]:
+        '''
+        Cumulative inverse LLR used to detect noise (keyed by class label).
+        '''
+        return dict(self._noise_llrs)
+
+    @property
+    def noise_updates(self) -> Dict[Any, float]:
+        '''
+        Statistic used to update corresponding self.noise_llr_list at the same time (keyed by class
+        label).
+        '''
+        return dict(self._noise_updates)
+
+    @property
+    def noise_likelihoods(self) -> List[float]:
+        '''
+        Log-likelihood of the noise model. Used with self.sig_updates to calculate the
+        corresponding self.noise_updates at the same time (keyed by class label).
+        '''
+        return copy.copy(self._noise_likelihoods)
+
+    def _updateLikelihoods(self, feature_vector: np.ndarray) -> Any:
+        '''
+        Uses the input feature vector to update all the test statistics for every model in this
+        classifier.
+
+        :return: The label of the class that has the highest cumulative LLR.
+        '''
+
+        noise_ll = self._noise_model.logLikelihood(feature_vector)
+        self._noise_likelihoods.append(noise_ll)
+
+        max_likelihood_class = None
+        max_signal_llr = -np.inf
+        for class_label, model in self._model_dict.items():
+
+            # Update the LLR for each class, storing the statistics along the way so the user can
+            # analyze them, if desired.
+            signal_ll = model.logLikelihood(feature_vector)
+            self._signal_likelihoods[class_label].append(signal_ll)
+
+            signal_update = signal_ll - noise_ll
+            self._signal_updates[class_label].append(signal_update)
+
+            # Implement the CUSUM approach to likelihood accumulation, which resets the LLR when it
+            # falls below zero.
+            signal_llr_list = self._signal_llrs[class_label]
+            prev_llr = 0 if not signal_llr_list else signal_llr_list[-1]
+            signal_llr = prev_llr + signal_update
+            if signal_llr < 0:
+                signal_llr = 0
+                # LLR is low enough that we should start looking for the beginning of the signal
+                # associated with this model (use priors)
+                model.reset()
+
+            signal_llr_list.append(signal_llr)
+
+            if signal_llr > max_signal_llr:
+                max_signal_llr = signal_llr
+                max_likelihood_class = class_label
+
+            # Do the same for noise
+            noise_update = noise_ll - signal_ll
+            self._noise_updates[class_label].append(noise_update)
+
+            noise_llr_list = self._noise_llrs[class_label]
+            if self._detecting_signal:
+                # No need to track the noise LLR at this time
+                noise_llr_list.append(0.0)
+            else:
+                prev_llr = 0 if not noise_llr_list else noise_llr_list[-1]
+                noise_llr = max(0, prev_llr + noise_update)
+                noise_llr_list.append(noise_llr)
+
+        return max_likelihood_class
+
+    def _quantizeFeatureVector(self, feature_vector: np.ndarray) -> np.ndarray:
+        '''
+        Apply the elements of ``self._quantizer_list`` to the respective elements of
+        ``feature_vector`` to generate a discretized feature vector.
+        '''
+
+        quantized_vector = np.zeros(self._vect_dim)
+        for element_idx, quantizer in enumerate(self._quantizer_list):
+            quantized_vector[element_idx] = quantizer(feature_vector[element_idx])
+
+        return quantized_vector
+
+    def _getQuantizerList(self, train_event_dict: Dict[Any, List[np.ndarray]],
+                          noise_train_array: np.ndarray, quantizer_type: Type[Quantizer],
+                          num_quantize_levels: int) -> List[Quantizer]:
+        '''
+        Generate and return a list of ``Quantizer`` using the input parameters and dictionary of
+        training events. One quantizer is generated for every vector element.
+        '''
+
+        # Quantizers are generated using the aggregate of all training data (they do not depend on
+        # class label).
+        all_feat_matrix = np.array([]).reshape((self._vect_dim, 0))
+        for event_list in train_event_dict.values():
+            for event in event_list:
+                all_feat_matrix = np.concatenate((all_feat_matrix, event), axis=1)
+
+        all_feat_matrix = np.concatenate((all_feat_matrix, noise_train_array), axis=1)
+
+        quantizer_list = []
+        for element_idx in range(self._vect_dim):
+            quantizer = quantizer_type(num_quantize_levels, all_feat_matrix[element_idx, :], True)
+            quantizer_list.append(quantizer)
+
+        return quantizer_list
+
+    def _getClassModels(self, train_event_dict: Dict[Any, List[np.ndarray]],
+                        noise_train_array: np.ndarray, max_value: int, max_num_depend: int,
+                        mi_thresh: float, min_prob: float,
+                        num_pri_obs: Optional[int]) -> Tuple[Dict[Any, SCSTClassModel],
+                                                             SCSTClassModel]:
+        '''
+        Trains a SCSTClassModel for each key in the input ``train_event_dict``, as well as a
+        SCSTClassModel for noise-only vector sequences.
+        '''
+
+        quantized_train_List = self._getQuantizedTrainEventList([noise_train_array])
+        noise_model = SCSTClassModel(quantized_train_List, max_num_depend, mi_thresh, min_prob,
+                                     max_value, True, None)
+
+        model_dict = {}
+        for class_label, train_event_list in train_event_dict.items():
+            quantized_train_List = self._getQuantizedTrainEventList(train_event_list)
+            model = SCSTClassModel(quantized_train_List, max_num_depend, mi_thresh, min_prob,
+                                   max_value, False, num_pri_obs)
+            model_dict[class_label] = model
+
+        return model_dict, noise_model
+
+    def _getQuantizedTrainEventList(self, train_event_list: List[np.ndarray]) -> List[np.ndarray]:
+        '''
+        Given a list of training events (matrices with column vectors as observations), return a
+        list of matrices with the same sizes, but with elements quantized using
+        ``self._quantizer_list``.
+        '''
+
+        quantized_event_list = []
+        for event in train_event_list:
+
+            quantized_event = np.zeros(event.shape)
+            for element_idx, quantizer in enumerate(self._quantizer_list):
+                quantized_event[element_idx, :] = quantizer(event[element_idx, :])
+
+            quantized_event_list.append(quantized_event)
+
+        return quantized_event_list
