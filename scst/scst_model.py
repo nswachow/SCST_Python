@@ -336,7 +336,7 @@ class SCSTClassifier:
                  mi_thresh: float, min_prob: float, num_pri_obs: Optional[int]):
         '''
         :param train_event_dict: Keys are class labels, and values are lists of training event
-            (column vector, sequences) to use for each corresponding class.
+            (column vector) sequences to use for each corresponding class.
         :param quantizer_type: Name of quantizer class to use for discretizing vector elements
             prior to classification.
         :param num_quantize_levels: Number of quantization levels to use when training each vector

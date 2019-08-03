@@ -2,6 +2,7 @@ import numpy as np
 
 from scst.scst_model import SCSTElementModel, SCSTVectorModel, SCSTClassModel, SCSTClassifier
 from scst.quantizer import LloydMaxQuantizer
+from test_tools import getTrainDict, getTestSequence
 
 
 def testRandomModels():
@@ -83,6 +84,7 @@ def testSimpleModels():
 
 def testSCSTClassifierRandom():
 
+    # Define parameters
     QUANTIZER_TYPE = LloydMaxQuantizer
     NUM_QUANTIZE_LEVELS = 5
     MAX_NUM_DEPEND = 5
@@ -90,37 +92,20 @@ def testSCSTClassifierRandom():
     MIN_PROB = 1e-4
     NUM_PRI_OBS = 10
 
-    A_LOW = -3
-    A_HIGH = 0.5
-    B_LOW = -0.5
-    B_HIGH = 0.5
-    NOISE_LOW = -0.5
-    NOISE_HIGH = 3
-
-    VECT_DIM = 4
     OBS_PER_EVENT = 100
+    EVENTS_PER_CLASS = 10
+    VECT_DIM = 4
 
     SIG_THRESH = 10
     NOISE_THRESH = 10
 
-    train_event_dict = {
-        'A': [np.random.uniform(low=A_LOW, high=A_HIGH, size=(VECT_DIM, OBS_PER_EVENT))
-              for _ in range(10)],
-        'B': [np.random.uniform(low=B_LOW, high=B_HIGH, size=(VECT_DIM, OBS_PER_EVENT))
-              for _ in range(10)],
-          0: [np.random.uniform(low=NOISE_LOW, high=NOISE_HIGH, size=((VECT_DIM, OBS_PER_EVENT)))]
-    }
+    # Retrieve train and test data
+    train_event_dict = getTrainDict(OBS_PER_EVENT, EVENTS_PER_CLASS, VECT_DIM)
+    test_array, _ = getTestSequence(VECT_DIM)
 
+    # Initialize classifier and generate results
     classifier = SCSTClassifier(train_event_dict, QUANTIZER_TYPE, NUM_QUANTIZE_LEVELS,
                                 MAX_NUM_DEPEND, MI_THRESH, MIN_PROB, NUM_PRI_OBS)
-
-    test_array = np.concatenate((
-        np.random.uniform(low=NOISE_LOW, high=NOISE_HIGH, size=((VECT_DIM, 20))),
-        np.random.uniform(low=A_LOW, high=A_HIGH, size=((VECT_DIM, 50))),
-        np.random.uniform(low=NOISE_LOW, high=NOISE_HIGH, size=((VECT_DIM, 40))),
-        np.random.uniform(low=B_LOW, high=B_HIGH, size=((VECT_DIM, 70))),
-        np.random.uniform(low=NOISE_LOW, high=NOISE_HIGH, size=((VECT_DIM, 30)))),
-        axis=1)
 
     for test_idx in range(test_array.shape[1]):
         classifier.classify(test_array[:, test_idx], SIG_THRESH, NOISE_THRESH)
