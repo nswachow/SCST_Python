@@ -589,6 +589,8 @@ class SCSTClassifier:
         training events. One quantizer is generated for every vector element.
         '''
 
+        print("SCSTClassifier -> Generating Quantizers")
+
         # Quantizers are generated using the aggregate of all training data (they do not depend on
         # class label).
         all_feat_matrix = np.array([]).reshape((self._vect_dim, 0))
@@ -612,13 +614,17 @@ class SCSTClassifier:
         SCSTClassModel for noise-only vector sequences.
         '''
 
+        print("SCSTClassifier -> Generating Noise Model")
         quantized_train_List = self._getQuantizedTrainEventList(train_event_dict[0])
         noise_model = SCSTClassModel(quantized_train_List, max_num_depend, mi_thresh, min_prob,
                                      max_value, True, None)
 
         model_dict = {}
         for class_label, train_event_list in train_event_dict.items():
+
             if class_label == 0: continue
+            print("SCSTClassifier -> Generating Class {} Model".format(class_label))
+
             quantized_train_List = self._getQuantizedTrainEventList(train_event_list)
             model = SCSTClassModel(quantized_train_List, max_num_depend, mi_thresh, min_prob,
                                    max_value, False, num_pri_obs)

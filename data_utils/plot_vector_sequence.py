@@ -52,6 +52,7 @@ def getPlotDataTuple(truth_path: Optional[str],
     if data_path is not None:
         assert (start_second is not None) and (end_second is not None), (
             "Must supply a start_second and end_second with data_path")
+        assert start_second < end_second
         truth_array = None
         base_name = os.path.basename(data_path).split(".txt")[0].split("NVSPL_")[1]
         data_matrix = getSPLMatrix(data_path, start_second, end_second)

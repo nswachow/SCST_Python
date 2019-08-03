@@ -1,9 +1,9 @@
 import numpy as np
 import copy
+import pickle
 from typing import Tuple, Dict, List, Any
 
 from keras.models import Sequential
-from keras.layers import Dense
 import keras.utils
 
 
@@ -39,8 +39,8 @@ class TransientKerasClassifier():
 
         self._class_label_dict, train_event_dict = TransientKerasClassifier._getClassLabelDict(
             train_event_dict)
-        self._model, self._score = self._getKerasModel(train_event_dict, model_config, eval_percent,
-                                                       num_init, num_epoch, batch_size)
+        self._model, self.score = self._getKerasModel(train_event_dict, model_config, eval_percent,
+                                                      num_init, num_epoch, batch_size)
         self.reset()
 
         # These input's aren't used hereafter, but store them so they can be referenced from saved
@@ -57,6 +57,28 @@ class TransientKerasClassifier():
         A list of the class labels assigned to all the vectors processed thus far.
         '''
         return copy.copy(self._class_labels)
+
+    def save(self, file_path: str) -> None:
+        '''
+        Serialize this object to a pickle file.
+
+        :param file_path: The full path to the file to be used to store this object.
+        '''
+        with open(file_path, 'wb') as pkl_file:
+            pickle.dump(self, pkl_file)
+
+    @staticmethod
+    def load(file_path: str) -> 'TransientKerasClassifier':
+        '''
+        Load and return a ``TransientKerasClassifier`` object located at the input file path.
+
+        :param file_path: The full path to the file storing the object to load.
+        '''
+        with open(file_path, 'rb') as pkl_file:
+            classifier = pickle.load(pkl_file)
+            assert isinstance(classifier, TransientKerasClassifier)
+
+        return classifier
 
     def classify(self, feature_vector: np.ndarray) -> Any:
         '''
