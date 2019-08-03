@@ -73,9 +73,10 @@ class SCSTElementModel:
         assert max_num_depend >= 0
         assert mi_thresh >= 0
 
-        self._depend_idx = self._learnDependentIndicies(
+        depend_seq_idx_list, self._depend_idx = self._learnDependentIndicies(
             train_event_list, max_num_depend, mi_thresh, max_value)
-        self._pmf = self._learnConditionalPMF(train_event_list, min_prob, max_value)
+        self._pmf = self._learnConditionalPMF(train_event_list, depend_seq_idx_list, min_prob,
+                                              max_value)
 
     def logLikelihood(self, data_matrix: np.ndarray) -> float:
         '''
@@ -91,13 +92,12 @@ class SCSTElementModel:
 
         assert data_matrix.shape == (self._vect_dim, self._order + 1)
 
-        depend_list = []
-        for seq_idx in self._depend_idx:
-            depend_list.append(data_matrix[seq_idx.index(-1)])
+        if self._depend_idx is None:
+            depend_values = tuple()
+        else:
+            depend_values = tuple(data_matrix[self._depend_idx])
 
-        depend_tuple = tuple(depend_list)
-
-        likelihood = self._pmf(data_matrix[self._element_idx, -1], depend_tuple)
+        likelihood = self._pmf(data_matrix[self._element_idx, -1], depend_values)
 
         if likelihood < float_info.min:
             # Avoid warning associated with computing log(0)
@@ -105,7 +105,8 @@ class SCSTElementModel:
         else:
             return np.log(likelihood)
 
-    def _learnConditionalPMF(self, train_event_list: List[np.ndarray], min_prob: float,
+    def _learnConditionalPMF(self, train_event_list: List[np.ndarray],
+                             depend_seq_idx_list: List[SequenceIndex], min_prob: float,
                              max_value: int) -> ConditionalContiguousPMF:
         '''
         Get a conditional mass function to represent this element.
@@ -115,14 +116,16 @@ class SCSTElementModel:
         num_samples = len(train_array)
         depend_matrix = np.array([]).reshape((0, num_samples))
 
-        for seq_idx in self._depend_idx:
+        for seq_idx in depend_seq_idx_list:
             depend_row = self._getElementSamples(train_event_list, seq_idx)
             depend_matrix = np.concatenate((depend_matrix, depend_row.reshape((1, num_samples))))
 
         return ConditionalContiguousPMF(train_array, depend_matrix, min_prob, max_value)
 
     def _learnDependentIndicies(self, train_event_list: List[np.ndarray], max_num_depend: int,
-                                mi_thresh: float, max_value: int) -> List[SequenceIndex]:
+                                mi_thresh: float,
+                                max_value: int) -> Tuple[List[SequenceIndex],
+                                                         Tuple[np.ndarray, np.ndarray]]:
         '''
         Get a List of SequenceIndex that represent that relative elements in a vector sequence that
         this element is found to be most dependent on.
@@ -151,7 +154,20 @@ class SCSTElementModel:
             hi_mi_idx = np.argsort(mi_list)[-max_num_depend:]
             mi_idx_list = [mi_idx_list[idx] for idx in hi_mi_idx]
 
-        return mi_idx_list
+        # Convert the list of SequenceIndex into a tuple of arrays that can be used to quickly index
+        # test data
+        depend_idx = None
+        if len(mi_idx_list) > 0:
+            depend_row_idx = []
+            depend_col_idx = []
+            for seq_idx in mi_idx_list:
+                idx_tuple = seq_idx.index(-1)
+                depend_row_idx.append(idx_tuple[0])
+                depend_col_idx.append(idx_tuple[1])
+
+            depend_idx = (np.array(depend_row_idx), np.array(depend_col_idx))
+
+        return mi_idx_list, depend_idx
 
     def _getElementSamples(self, train_event_list: List[np.ndarray],
                            seq_idx: SequenceIndex) -> np.ndarray:

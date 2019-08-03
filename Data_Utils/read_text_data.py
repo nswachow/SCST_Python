@@ -1,4 +1,5 @@
 from typing import Tuple, Dict, Union, List
+import os
 import numpy as np
 from collections import defaultdict
 
@@ -9,6 +10,11 @@ MAX_SECONDS = 86400  # Number of seconds per day
 
 def _processTextLines(file_path: str, start_offset: int,
                       end_offset: Union[int, float]) -> np.ndarray:
+    '''
+    Read pure numerical values from a text file and return an array with line in the file as rows.
+    Naturally, this assumes that each line in the file has the same number of entries (separated by
+    a space).
+    '''
 
     array_list = []
     with open(file_path, 'r') as spl_file:
@@ -25,6 +31,18 @@ def _processTextLines(file_path: str, start_offset: int,
 
     return np.array(array_list).T
 
+
+def _getLabel(original_label: int, convert_interference_to_noise: bool) -> int:
+    '''
+    Returns a noise label for interfence and noise, if ``convert_interference_to_noise`` is True.
+    Returns the original label for signal labels.
+    '''
+
+    if ((original_label % 10 != 0) or  # signal label
+        (not convert_interference_to_noise)):
+        return original_label
+
+    return 0
 
 def getSPLMatrix(file_path: str, start_second: int=0, end_second: int=MAX_SECONDS) -> np.ndarray:
     '''
@@ -67,7 +85,8 @@ def getTruthArray(file_path: str) -> Tuple[np.ndarray, int, int]:
         - Ending time (in seconds) associated with the returned array.
     '''
 
-    hour_strings = file_path.split('.')[0].split('h')[-1].split('-')
+    file_name = os.path.basename(file_path)
+    hour_strings = file_name.split('.')[0].split('h')[-1].split('-')
     start_second, end_second = (3600 * float(val) for val in hour_strings)
     truth_array = _processTextLines(file_path, 0, end_second - start_second).flatten().astype(int)
 
@@ -77,7 +96,8 @@ def getTruthArray(file_path: str) -> Tuple[np.ndarray, int, int]:
     return truth_array, start_second, end_second
 
 
-def getTrainEvents(train_file_path: str, data_file_path: str) -> Dict[int, List[np.ndarray]]:
+def getTrainEvents(train_file_path: str, data_file_path: str,
+                   convert_interference_to_noise: bool) -> Dict[int, List[np.ndarray]]:
     '''
     Extracts events of intrest (typically to use for training), each consisting of a sequence of
     vectors (columns of a matrix), from a vector sequence stored at ``data_file_path``, using the
@@ -97,6 +117,7 @@ def getTrainEvents(train_file_path: str, data_file_path: str) -> Dict[int, List[
     for event_idx in range(train_param_matrix.shape[1]):
         start_time, end_time, label = train_param_matrix[:, event_idx]
         event_matrix = data_matrix[:, start_time:end_time+1]
+        label = _getLabel(label, convert_interference_to_noise)
         event_dict[label].append(event_matrix)
 
     return event_dict
