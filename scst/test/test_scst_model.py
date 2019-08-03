@@ -107,15 +107,12 @@ def testSCSTClassifierRandom():
         'A': [np.random.uniform(low=A_LOW, high=A_HIGH, size=(VECT_DIM, OBS_PER_EVENT))
               for _ in range(10)],
         'B': [np.random.uniform(low=B_LOW, high=B_HIGH, size=(VECT_DIM, OBS_PER_EVENT))
-              for _ in range(10)]
+              for _ in range(10)],
+          0: [np.random.uniform(low=NOISE_LOW, high=NOISE_HIGH, size=((VECT_DIM, OBS_PER_EVENT)))]
     }
 
-    noise_train_array = np.random.uniform(low=NOISE_LOW, high=NOISE_HIGH,
-                                          size=((VECT_DIM, OBS_PER_EVENT)))
-
-    classifier = SCSTClassifier(train_event_dict, noise_train_array, QUANTIZER_TYPE,
-                                NUM_QUANTIZE_LEVELS, MAX_NUM_DEPEND, MI_THRESH, MIN_PROB,
-                                NUM_PRI_OBS)
+    classifier = SCSTClassifier(train_event_dict, QUANTIZER_TYPE, NUM_QUANTIZE_LEVELS,
+                                MAX_NUM_DEPEND, MI_THRESH, MIN_PROB, NUM_PRI_OBS)
 
     test_array = np.concatenate((
         np.random.uniform(low=NOISE_LOW, high=NOISE_HIGH, size=((VECT_DIM, 20))),
