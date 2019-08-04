@@ -48,8 +48,8 @@ def _trainTransientKerasClassifier(train_event_dict: Dict[Any, List[np.ndarray]]
     BATCH_SIZE = 32
     VECT_DIM = 33
 
-    FIRST_LAYER_NEURONS = 32
-    SECOND_LAYER_NEURONS = 16
+    FIRST_LAYER_NEURONS = 60
+    SECOND_LAYER_NEURONS = 28
 
     # Train and save classifier
     num_classes = len(train_event_dict)
