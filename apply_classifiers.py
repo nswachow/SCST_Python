@@ -10,6 +10,7 @@ from scst.scst_model import SCSTClassifier
 from transient_keras.transient_keras_classifier import TransientKerasClassifier
 from data_utils.read_text_data import getTruthArray, getSPLMatrix
 from data_utils.plot_vector_sequence import plotSequence, getPlotDataTuple
+from confusion_matrix import ConfusionMatrix
 
 
 def _printProgress(percent_complete: float, run_name: str, bar_width: int=50,
@@ -62,10 +63,9 @@ def applyClassifiers(scst_pkl_path: str, keras_pkl_path: str, data_path: Optiona
     id_tag_list = ["SCST IDs", "Keras IDs"]
 
     if truth_array is not None:
-        print("SCST Correct Classification Rate:",
-            np.sum(scst_classifier.class_labels == truth_array) / len(truth_array))
-        print("Keras Correct Classification Rate:",
-            np.sum(keras_classifier.class_labels == truth_array) / len(truth_array))
+        for classifier, name in zip([scst_classifier, keras_classifier], ["SCST", "Keras"]):
+            conf_matrix = ConfusionMatrix(classifier.class_labels, truth_array, True, name)
+            conf_matrix.display()
 
         id_array_list.append(truth_array)
         id_tag_list.append("Truth IDs")

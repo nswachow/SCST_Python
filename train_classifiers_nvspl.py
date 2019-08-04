@@ -48,6 +48,7 @@ def _trainTransientKerasClassifier(train_event_dict: Dict[Any, List[np.ndarray]]
     BATCH_SIZE = 32
     VECT_DIM = 33
 
+    # Found via "fine_best_keras_model.py" script
     FIRST_LAYER_NEURONS = 60
     SECOND_LAYER_NEURONS = 28
 
