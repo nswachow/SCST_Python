@@ -19,7 +19,7 @@ class TransientKerasClassifier():
                  default_label: Any):
         '''
         :param train_event_dict: Keys are class labels, and values are lists of training event
-            (column vector) sequences to use for each corresponding class.
+            (column vector) sequences to use for the corresponding class.
         :param model_config: Represents the configuration information for a keras model, obtained
             using the <model>.get_config() method.
         :param eval_percent: Percentage of the input training data to use for evaluating each
@@ -31,7 +31,7 @@ class TransientKerasClassifier():
         :param batch_size: Batch size to use when training the keras network.
         :param default_label: Label to return when no previous vectors have been processed by the
             classify method. Needed since the keras network is trained to make decisions on pairs
-            of feaure vectors that are temporaly adjacent.
+            of feature vectors that are temporally adjacent.
         '''
 
         self._default_label = default_label
@@ -43,7 +43,7 @@ class TransientKerasClassifier():
                                                       num_init, num_epoch, batch_size)
         self.reset()
 
-        # These input's aren't used hereafter, but store them so they can be referenced from saved
+        # These inputs aren't used hereafter, but store them so they can be referenced from saved
         # models.
         self.model_config = model_config
         self.eval_percent = eval_percent
@@ -83,7 +83,7 @@ class TransientKerasClassifier():
     def classify(self, feature_vector: np.ndarray) -> Any:
         '''
         Applies the internal keras network to the input ``feature_vector`` to generate and return a
-        class label. Class labels are assigned based on output neurons with the largest response
+        class label. Class labels are assigned based on the output neuron with the largest response
         to the input.
 
         :param feature_vector: The next feature vector in the sequence.
@@ -130,6 +130,7 @@ class TransientKerasClassifier():
         int_label = 0
         int_class_label_dict = {}
         int_train_event_dict = {}
+
         for label, event_list in train_event_dict.items():
             int_class_label_dict[int_label] = label
             int_train_event_dict[int_label] = event_list
@@ -204,7 +205,7 @@ class TransientKerasClassifier():
                          eval_percent: float) -> Tuple[np.ndarray, np.ndarray,
                                                        np.ndarray, np.ndarray]:
         '''
-        Segment the input data into training and evaluation partitions, and randomize the order to
+        Segment the input data into training and evaluation sets, and randomize the order to
         provide different training stimulus.
         '''
 

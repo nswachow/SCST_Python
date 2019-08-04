@@ -16,7 +16,7 @@ from confusion_matrix import ConfusionMatrix
 def _printProgress(percent_complete: float, run_name: str, bar_width: int=50,
                    fill_char: str=u"\u25A0") -> None:
     '''
-    A simple terminal progress bar.
+    Create and update a simple terminal progress bar.
     '''
 
     filled_bar = fill_char * int(round(percent_complete * bar_width))
@@ -30,15 +30,16 @@ def applyClassifiers(scst_pkl_path: str, keras_pkl_path: str, data_path: Optiona
                      truth_path: Optional[str]=None, start_second: Optional[float]=None,
                      end_second: Optional[float]=None) -> None:
     '''
-    Apply a SCSTClassifier to the data specified by the inputs, and plot the results.
+    Apply both a ``SCSTClassifier`` and a ``TransientKerasClassifier`` to the data sequence
+    specified by the inputs, and plot the results.
 
-    :param scst_pkl_path: Full path to a pickle file containing a saved ``SCSTClassifierqq object.
+    :param scst_pkl_path: Full path to a pickle file containing a saved ``SCSTClassifier`` object.
     :param keras_pkl_path: Full path to a pickle file containing a saved
         ``TransientKerasClassifier`` object.
     :param data_path, truth_path, start_second, end_second: See ``data_utils.getPlotDataTuple``.
     '''
 
-    # Define parameters
+    # Define SCST classification parameters
     SIG_THRESH = 100
     NOISE_THRESH = 100
 

@@ -12,12 +12,11 @@ from data_utils.read_text_data import getSPLMatrix, getTruthArray
 def _plotIDStrip(ax: matplotlib.axes, id_array: np.ndarray, label: str,
                  x_extents: List[float]) -> None:
     '''
-    Plot a strip above the data that represents class labels at each time.
+    Plot a strip above the data sequence image that represents class labels at each time.
     '''
 
     id_array = np.reshape(id_array, (1, len(id_array)))
-    ax.imshow(id_array, aspect="auto", interpolation="none",
-              extent=x_extents + [0, 1])
+    ax.imshow(id_array, aspect="auto", interpolation="none", extent=x_extents + [0, 1])
     ax.set_ylabel(label)
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_ticks([])
@@ -30,35 +29,36 @@ def getPlotDataTuple(truth_path: Optional[str],
                                                          float, str]:
     '''
     Retrieve either:
-    1) A data matrix (feature vectors are columns) based on the inputs data_path, start_second,
-        end_second.
-    2) An array with truth labels and a corresponding matrix of data (covers the same time segment),
-        based on the input train_path.
+    1) A data matrix (feature vectors are columns) based on the inputs ``data_path``,
+        ``start_second``, and ``end_second``.
+    2) An array with truth labels and a corresponding matrix of data, that cover the same time
+        segment, based on the input ``train_path``.
     ... plus the start time of the sequence, and a title for the plot.
 
     :param truth_path: The full path to a "TRUTH" file that describes the location and types of
         events.
-    :param data_path: The full path to a "NVSPL" file that contains raw 1/3 data. If this input is
-        not ``None`` then the ``truth_path`` input will be ignored.
-    :param start_second: The starting time of the data to extract from the data at ``data_path``.
+    :param data_path: The full path to a "NVSPL" file that contains raw 1/3 octave data. If this
+        input is not ``None``, then the ``truth_path`` input will be ignored.
+    :param start_second: The starting time of the data to extract from the sequence at
+        ``data_path``. This value is irrelevant when using the ``truth_path`` input instead of the
+        ``data_path`` input.
+    :param end_second: The ending time of the data to extract from the sequence at ``data_path``.
         This value is irrelevant when using the ``truth_path`` input instead of the ``data_path``
         input.
-    :param end_second: The ending time of the data to extract from the data at ``data_path``. This
-        value is irrelevant when using the ``truth_path`` input instead of the ``data_path`` input.
 
     :return: See method description.
     '''
 
     if data_path is not None:
         assert (start_second is not None) and (end_second is not None), (
-            "Must supply a start_second and end_second with data_path")
+            "Must supply a start_second and end_second with data_path.")
         assert start_second < end_second
         truth_array = None
         base_name = os.path.basename(data_path).split(".txt")[0].split("NVSPL_")[1]
         data_matrix = getSPLMatrix(data_path, start_second, end_second)
 
     else:
-        assert truth_path is not None, "Must supply truth_path if no data_path is supplied"
+        assert truth_path is not None, "Must supply truth_path if no data_path is supplied."
 
         truth_dir = os.path.dirname(truth_path)
         base_name = os.path.basename(truth_path).split("_h")[0].split("TRUTH_")[1]
@@ -74,7 +74,7 @@ def plotSequence(data_matrix: np.ndarray, start_second: int, title: str,
                  id_array_list: Optional[List[np.ndarray]]=None,
                  id_tag_list: Optional[List[str]]=None) -> None:
     '''
-    Plot 1/3 octave SPL data along with (optionally) estimated and true classification labels.
+    Plot 1/3 octave SPL data along with (optionally) class label strips (true and/or estimated).
 
     :param data_matrix: Matrix with rows that represent 1/3 octave index and columns that represent
         vectors at different times (in seconds).
@@ -105,7 +105,7 @@ def plotSequence(data_matrix: np.ndarray, start_second: int, title: str,
     # Setup plot
     fig = plt.figure(figsize=(16, plot_height), constrained_layout=True)
     fig.suptitle(title)
-    height_ratios.append(4)
+    height_ratios.append(4)  # Ratio for the data image
     grid_spec = fig.add_gridspec(ncols=1, nrows=num_rows, height_ratios=height_ratios)
 
     x_extents = [start_second, start_second + data_matrix.shape[1]]
@@ -146,6 +146,9 @@ if __name__ == '__main__':
     data_matrix, truth_array, start_second, title = getPlotDataTuple(
         args.truth_path, args.data_path, args.start_second, args.end_second)
 
-    plotSequence(data_matrix, start_second, title, [truth_array], ["Truth IDs"])
+    id_array_list = None if truth_array is None else [truth_array]
+    id_tag_list = None if truth_array is None else ["Truth IDs"]
+
+    plotSequence(data_matrix, start_second, title, id_array_list, id_tag_list)
 
     plt.show()

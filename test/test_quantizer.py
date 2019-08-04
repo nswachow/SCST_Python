@@ -4,11 +4,15 @@ from scst.quantizer import LloydMaxQuantizer
 
 
 def testLloydMaxQuantizer():
+    '''
+    Evaluate the ``LlyodMaxQuantizer`` class to ensure it properly quantizes continuous data.
+    '''
 
     LOW = 0
     HIGH = 10
     NUM_LEVELS = 4
 
+    # Form both discrete and continuous quantizers
     value_array = np.random.uniform(low=LOW, high=HIGH, size=100)
     cont_quantizer = LloydMaxQuantizer(NUM_LEVELS, value_array, False)
     discrete_quantizer = LloydMaxQuantizer(NUM_LEVELS, value_array, True)

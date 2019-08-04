@@ -6,13 +6,13 @@ from keras.layers import Dense
 from keras.models import Sequential
 
 from transient_keras.transient_keras_classifier import TransientKerasClassifier
-from data_utils.read_text_data import getTrainEvents
+from data_utils.read_text_data import getTrainEvents, VECT_DIM
 
 
 def findBestKerasModel():
     '''
-    Iterate through a set of network structures, train corresponding TransientKerasClassifier for
-    each structure, and note the score achieved by each. Finally, report the scores of all the
+    Iterate through a set of network structures, train a corresponding ``TransientKerasClassifier``
+    for each structure, and note the score achieved by each. Finally, report the scores of all the
     networks in order from best to worst.
     '''
 
@@ -22,7 +22,6 @@ def findBestKerasModel():
     NUM_INIT = 5
     NUM_EPOCH = 30
     BATCH_SIZE = 32
-    VECT_DIM = 33
 
     # Get training data
     this_dir = os.path.dirname(Path(__file__).absolute())
@@ -56,8 +55,7 @@ def findBestKerasModel():
             neuron_tuple_list.append((first_layer_neurons, second_layer_neurons))
             score_list.append(classifier.score)
 
-            print("NEURONS:", neuron_tuple_list[-1],
-                  "SCORE:", score_list[-1])
+            print("NEURONS:", neuron_tuple_list[-1], "SCORE:", score_list[-1])
 
     # Print results
     sort_idx = np.argsort(score_list)

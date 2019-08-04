@@ -7,10 +7,15 @@ from test_tools import exceptionTest
 
 
 def testPMF():
+    '''
+    Evaluate the properties of the ``ContiguousPMF`` class to ensure it represents a valid PMF, and
+    that all of the input parameters function as expected.
+    '''
 
     HIGH = 5
     MIN_PROB = 1e-4
 
+    # Create ContiguousPMF object
     value_array = np.random.randint(low=0, high=HIGH, size=100)
     pmf = ContiguousPMF(value_array, MIN_PROB, HIGH)
 
@@ -38,9 +43,14 @@ def testPMF():
 
 
 def testJointPMF():
+    '''
+    Evaluate the properties of the ``JointContiguousPMF`` class to ensure it represents a valid
+    Joint PMF, and that all of the input parameters function as expected.
+    '''
 
     HIGH = 5
 
+    # Create JointContiguousPMF object
     x_array = np.random.randint(low=0, high=HIGH, size=100)
     y_array = np.random.randint(low=0, high=HIGH, size=100)
 
@@ -76,19 +86,24 @@ def testJointPMF():
 
 
 def testConditionalPMF():
+    '''
+    Evaluate the properties of the ``ConditionalContiguousPMF`` class to ensure it represents a
+    valid Conditional PMF, and that all of the input parameters function as expected.
+    '''
 
     HIGH = 3
     NUM_DEPEND = 3
     MIN_PROB = 1e-4
 
+    # Create ConditionalContiguousPMF object
     value_array = np.random.randint(low=0, high=HIGH, size=100)
     depend_matrix = np.random.randint(low=0, high=HIGH, size=(NUM_DEPEND, 100))
     pmf = ConditionalContiguousPMF(value_array, depend_matrix, MIN_PROB, HIGH)
 
+    # Ensure probabilities sum to 1.0 for each dependent variable tuple
     unique_depend = list(set([tuple(depend_matrix[:, ii])
                               for ii in range(depend_matrix.shape[1])]))
 
-    # Ensure probabilities sum to 1.0 for each dependent variable tuple
     for depend_tuple in unique_depend:
         total_prob = 0.0
         for value in np.arange(pmf.max_value+1):

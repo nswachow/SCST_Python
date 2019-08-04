@@ -9,13 +9,14 @@ from keras.models import Sequential
 from scst.scst_model import SCSTClassifier
 from scst.quantizer import LloydMaxQuantizer
 from transient_keras.transient_keras_classifier import TransientKerasClassifier
-from data_utils.read_text_data import getTrainEvents
+from data_utils.read_text_data import getTrainEvents, VECT_DIM
 
 
 def _trainSCSTClassifier(train_event_dict: Dict[Any, List[np.ndarray]],
                          save_dir: str) -> None:
     '''
-    Train and save a new SCSTModel using the input events and the parameters specified within.
+    Train and save a new ``SCSTClassifier`` using the input events and the parameters specified
+    within.
     '''
 
     # Define training parameters
@@ -36,7 +37,7 @@ def _trainSCSTClassifier(train_event_dict: Dict[Any, List[np.ndarray]],
 def _trainTransientKerasClassifier(train_event_dict: Dict[Any, List[np.ndarray]],
                                    save_dir: str) -> None:
     '''
-    Train and save a new TransientKerasClassifier using the input events and the parameters
+    Train and save a new ``TransientKerasClassifier`` using the input events and the parameters
     specified within.
     '''
 
@@ -46,10 +47,9 @@ def _trainTransientKerasClassifier(train_event_dict: Dict[Any, List[np.ndarray]]
     NUM_INIT = 5
     NUM_EPOCH = 20
     BATCH_SIZE = 32
-    VECT_DIM = 33
 
-    # Found via "fine_best_keras_model.py" script
-    FIRST_LAYER_NEURONS = 60
+    # Found via the "fine_best_keras_model.py" script
+    FIRST_LAYER_NEURONS = 56
     SECOND_LAYER_NEURONS = 28
 
     # Train and save classifier
@@ -70,8 +70,8 @@ def _trainTransientKerasClassifier(train_event_dict: Dict[Any, List[np.ndarray]]
 
 def trainClassifiers() -> None:
     '''
-    Load traininng data and pass it to functions to train an SCSTClassifier and a
-    TransientKerasClassifier.
+    Load training data and pass it to functions to train an ``SCSTClassifier`` and a
+    ``TransientKerasClassifier``.
     '''
 
     TRAIN_DATE = "2008_10_02"

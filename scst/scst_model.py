@@ -11,10 +11,13 @@ from scst.quantizer import Quantizer
 
 class SequenceIndex:
     '''
-    Indexes a past vector (relative to the current one) and an element in that vector.
+    Represents an index to an element in a previous vector (relative to the current one).
     '''
 
     def __init__(self, vector: int, element: int):
+        '''
+        :param vector, element: See properties with the same names.
+        '''
         self._vector = vector
         self._element = element
 
@@ -52,13 +55,13 @@ class SCSTElementModel:
         '''
         :param train_event_list: Element are matrices representing (quantized) vector sequences
             (columns of each matrix) associated with a specific class label.
-        :param element_idx: Index that this element represents within a observation vector.
+        :param element_idx: Index that this element represents within an observation vector.
         :param order: Maximum number of previous vectors in a sequence this model can depend on.
-        :param max_num_depend: Maximum number of elements the this model can depend on.
+        :param max_num_depend: Maximum number of elements that this model can depend on.
         :param mi_thresh: Threshold on mutual information used to determine if the element this
             model represents depends on another element.
         :param min_prob: Minimum probability output by this model. Used so probabilities of zero
-            aren't output when novel data is encountered.
+            aren't output when novel data is encountered, leading to log-likelihood values of -inf.
         :param max_value: Maximum value that can be observed for any element in any event in
             ``train_event_list``.
         '''
@@ -73,7 +76,7 @@ class SCSTElementModel:
         assert max_num_depend >= 0
         assert mi_thresh >= 0
 
-        depend_seq_idx_list, self._depend_idx = self._learnDependentIndicies(
+        depend_seq_idx_list, self._depend_idx = self._learnDependentIndices(
             train_event_list, max_num_depend, mi_thresh, max_value)
         self._pmf = self._learnConditionalPMF(train_event_list, depend_seq_idx_list, min_prob,
                                               max_value)
@@ -86,8 +89,8 @@ class SCSTElementModel:
             being the "oldest" and the last column being the "current" vector, an element of which
             we shall evaluate the likelihood of this model with respect to.
 
-        :return: The conditional log-likelihood of a given element in the last column vector in
-            ``data_matrix`` given this model and previous column vectors ``data_matrix``.
+        :return: The conditional log-likelihood of this model, given the associated element value
+            in the last column vector in ``data_matrix``, as well as previous column vectors.
         '''
 
         assert data_matrix.shape == (self._vect_dim, self._order + 1)
@@ -112,8 +115,11 @@ class SCSTElementModel:
         Get a conditional mass function to represent this element.
         '''
 
+        # Get data to represent the current element
         train_array = self._getElementSamples(train_event_list, SequenceIndex(0, self._element_idx))
         num_samples = len(train_array)
+
+        # Get data to represent the other elements this model depends on.
         depend_matrix = np.array([]).reshape((0, num_samples))
 
         for seq_idx in depend_seq_idx_list:
@@ -122,29 +128,34 @@ class SCSTElementModel:
 
         return ConditionalContiguousPMF(train_array, depend_matrix, min_prob, max_value)
 
-    def _learnDependentIndicies(self, train_event_list: List[np.ndarray], max_num_depend: int,
-                                mi_thresh: float,
-                                max_value: int) -> Tuple[List[SequenceIndex],
-                                                         Tuple[np.ndarray, np.ndarray]]:
+    def _learnDependentIndices(self, train_event_list: List[np.ndarray], max_num_depend: int,
+                               mi_thresh: float,
+                               max_value: int) -> Tuple[List[SequenceIndex],
+                                                        Tuple[np.ndarray, np.ndarray]]:
         '''
         Get a List of SequenceIndex that represent that relative elements in a vector sequence that
-        this element is found to be most dependent on.
+        this element is found to be most dependent on. Also return a Tuple that can be used to
+        quickly index a matrix to get the values associated with the dependent elements.
         '''
 
         this_samples = self._getElementSamples(train_event_list,
                                                SequenceIndex(0, self._element_idx))
 
-        # Generate a SequenceIndex for each vector element in the current and previous vectors that
-        # this element is found to be dependent on.
+        # Generate a SequenceIndex for each vector element in the current and previous vectors, and
+        # use mutual information to evaluate dependence.
         mi_list = []
         mi_idx_list = []
         for vector_idx in range(self._order + 1):
-            max_depend_idx = self._element_idx if vector_idx == 0 else self._vect_dim
-            for depend_idx in range(max_depend_idx):
 
+            # To form a proper joint likelihood, this element can only be dependent on elements in
+            # the same vector that have a smaller index (but any element of a previous vector).
+            max_depend_idx = self._element_idx if vector_idx == 0 else self._vect_dim
+
+            for depend_idx in range(max_depend_idx):
                 other_idx = SequenceIndex(vector_idx, depend_idx)
                 other_samples = self._getElementSamples(train_event_list, other_idx)
                 joint_pmf = JointContiguousPMF(this_samples, other_samples, max_value)
+
                 if joint_pmf.mutual_information > mi_thresh:
                     mi_list.append(joint_pmf.mutual_information)
                     mi_idx_list.append(other_idx)
@@ -160,6 +171,7 @@ class SCSTElementModel:
         if len(mi_idx_list) > 0:
             depend_row_idx = []
             depend_col_idx = []
+
             for seq_idx in mi_idx_list:
                 idx_tuple = seq_idx.index(-1)
                 depend_row_idx.append(idx_tuple[0])
@@ -263,13 +275,12 @@ class SCSTClassModel:
             # Assume first order vector dependency for simplicity. A P-order dependency is possible,
             # but doesn't improve performance in most cases and requires P+1 models.
             self._depend_model = SCSTVectorModel(train_event_list, 1, max_num_depend, mi_thresh,
-                                                min_prob, max_value)
+                                                 min_prob, max_value)
 
             train_event_list = SCSTClassModel._getPriorEventList(train_event_list, num_pri_obs)
 
         self._prior_model = SCSTVectorModel(train_event_list, 0, max_num_depend, mi_thresh,
                                             min_prob, max_value)
-
 
     def logLikelihood(self, feature_vector: np.ndarray) -> float:
         '''
@@ -327,8 +338,8 @@ class SCSTClassModel:
 
 class SCSTClassifier:
     '''
-    Applies a set of ``SCSTClassModel`` to a sequence of vectors (one at a time) to assign class
-    labels to each vector as it is processed.
+    Applies a set of ``SCSTClassModel`` to a sequence of vectors (one at a time) to assign a class
+    label to each vector as it is processed.
     '''
 
     def __init__(self, train_event_dict: Dict[Any, List[np.ndarray]],
@@ -337,7 +348,7 @@ class SCSTClassifier:
         '''
         :param train_event_dict: Keys are class labels, and values are lists of training event
             (column vector) sequences to use for each corresponding class.
-        :param quantizer_type: Name of quantizer class to use for discretizing vector elements
+        :param quantizer_type: Name of the quantizer class to use for discretizing vector elements
             prior to classification.
         :param num_quantize_levels: Number of quantization levels to use when training each vector
             element quantizer.
@@ -346,7 +357,8 @@ class SCSTClassifier:
         '''
 
         assert len(train_event_dict) > 0
-        assert 0 in train_event_dict, "Training dictionary must contain key '0' representing noise events"
+        assert 0 in train_event_dict, (
+            "Training dictionary must contain key '0' representing noise events")
         assert num_quantize_levels > 0
 
         class_train_list = next(iter(train_event_dict.values()))
@@ -361,7 +373,7 @@ class SCSTClassifier:
 
         self.reset()
 
-        # These input's aren't used hereafter, but store them so they can be referenced from saved
+        # These inputs aren't used hereafter, but store them so they can be referenced from saved
         # models.
         self.num_quantize_levels = num_quantize_levels
         self.max_num_depend = max_num_depend
@@ -386,8 +398,8 @@ class SCSTClassifier:
     @property
     def signal_updates(self) -> Dict[Any, float]:
         '''
-        Statistic used to update corresponding self._sig_llr_list at the same time (keyed by class
-        label).
+        Statistic used to update the corresponding self.sig_llr_list at the same time (keyed by
+        class label).
         '''
         return dict(self._signal_updates)
 
@@ -395,7 +407,7 @@ class SCSTClassifier:
     def signal_likelihoods(self) -> Dict[Any, float]:
         '''
         Log-likelihood of each signal model. Used with self.noise_likelihoods to calculate the
-        corresponding self.sig_updates at the same time (keyed by class label).
+        corresponding self.signal_updates at the same time (keyed by class label).
         '''
         return dict(self._signal_likelihoods)
 
@@ -409,15 +421,15 @@ class SCSTClassifier:
     @property
     def noise_updates(self) -> Dict[Any, float]:
         '''
-        Statistic used to update corresponding self.noise_llr_list at the same time (keyed by class
-        label).
+        Statistic used to update the corresponding self.noise_llr_list at the same time (keyed by
+        class label).
         '''
         return dict(self._noise_updates)
 
     @property
     def noise_likelihoods(self) -> List[float]:
         '''
-        Log-likelihood of the noise model. Used with self.sig_updates to calculate the
+        Log-likelihood of the noise model. Used with self.signal_updates to calculate the
         corresponding self.noise_updates at the same time (keyed by class label).
         '''
         return copy.copy(self._noise_likelihoods)
@@ -468,7 +480,7 @@ class SCSTClassifier:
 
     def classify(self, feature_vector: np.ndarray, sig_thresh: float, noise_thresh: float) -> Any:
         '''
-        Applies a set of SCSTClassModel to the input ``feature_vector`` to generate and return a
+        Applies a set of ``SCSTClassModel`` to the input ``feature_vector`` to generate and return a
         class label. Class labels are assigned based on cumulative log-likelihood ratios for each
         model, meaning this is a sequential process where the test statistics used to assign
         class labels are constantly updated as new vectors are processed.
@@ -497,7 +509,7 @@ class SCSTClassifier:
 
             self._detecting_signal = True
 
-            # Go back a correct labels assigned during the last signal detection time segment
+            # Go back and correct labels assigned during the last signal detection time segment
             num_labels = len(self._class_labels) - self._signal_start_idx
             self._class_labels = (self._class_labels[:self._signal_start_idx] +
                                   [max_likelihood_class] * num_labels)
@@ -516,7 +528,7 @@ class SCSTClassifier:
 
     def _updateLikelihoods(self, feature_vector: np.ndarray) -> Any:
         '''
-        Uses the input feature vector to update all the test statistics for every model in this
+        Uses the input feature vector to update the test statistic for every model in this
         classifier.
 
         :return: The label of the class that has the highest cumulative LLR.
@@ -610,8 +622,8 @@ class SCSTClassifier:
                         num_pri_obs: Optional[int]) -> Tuple[Dict[Any, SCSTClassModel],
                                                              SCSTClassModel]:
         '''
-        Trains a SCSTClassModel for each key in the input ``train_event_dict``, as well as a
-        SCSTClassModel for noise-only vector sequences.
+        Trains a ``SCSTClassModel`` for each key in the input ``train_event_dict``, as well as a
+        ``SCSTClassModel`` for noise-only vector sequences.
         '''
 
         print("SCSTClassifier -> Generating Noise Model")
@@ -635,7 +647,7 @@ class SCSTClassifier:
     def _getQuantizedTrainEventList(self, train_event_list: List[np.ndarray]) -> List[np.ndarray]:
         '''
         Given a list of training events (matrices with column vectors as observations), return a
-        list of matrices with the same sizes, but with elements quantized using
+        list of matrices with the same dimensions, but with elements quantized using
         ``self._quantizer_list``.
         '''
 

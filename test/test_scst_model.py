@@ -6,6 +6,11 @@ from test_tools import getTrainDict, getTestSequence
 
 
 def testRandomModels():
+    '''
+    Use randomly generated vector sequences to evaluate the ``SCSTElementModel``,
+    ``SCSTVectorModel``, and ``SCSTClassModel`` classes. No explicit checks are performed, but
+    rather, this test is to just ensure each class can properly process unknown data.
+    '''
 
     MAX_VALUE = 5
     ORDER = 2
@@ -38,6 +43,11 @@ def testRandomModels():
 
 
 def testSimpleModels():
+    '''
+    Use a simple, predetermined vector sequences to evaluate the ``SCSTElementModel``,
+    ``SCSTVectorModel``, and ``SCSTClassModel`` classes. Since the output of each model is known,
+    it is compared to the expected value in each case.
+    '''
 
     MAX_VALUE = 1
     ORDER = 1
@@ -83,6 +93,11 @@ def testSimpleModels():
 
 
 def testSCSTClassifierRandom():
+    '''
+    Use randomly generated vector sequences to evaluate the ``SCSTClassifier`` class. The output
+    of the ``classify`` method isn't explicitly evaluated, but rather, this test is to just ensure
+    this class can properly process unknown data.
+    '''
 
     # Define parameters
     QUANTIZER_TYPE = LloydMaxQuantizer

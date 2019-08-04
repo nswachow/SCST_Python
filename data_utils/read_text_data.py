@@ -4,14 +4,14 @@ import numpy as np
 from collections import defaultdict
 
 
-VECT_LENGTH = 33
+VECT_DIM = 33
 MAX_SECONDS = 86400  # Number of seconds per day
 
 
 def _processTextLines(file_path: str, start_offset: int,
                       end_offset: Union[int, float]) -> np.ndarray:
     '''
-    Read pure numerical values from a text file and return an array with line in the file as rows.
+    Read numerical values from a text file and return an array with the lines in the file as rows.
     Naturally, this assumes that each line in the file has the same number of entries (separated by
     a space).
     '''
@@ -35,20 +35,21 @@ def _processTextLines(file_path: str, start_offset: int,
 def _getLabel(original_label: int, convert_interference_to_noise: bool) -> int:
     '''
     Returns a noise label for interfence and noise, if ``convert_interference_to_noise`` is True.
-    Returns the original label for signal labels.
+    Returns the original label otherwise. The original label is always returned for signal labels.
     '''
 
-    if ((original_label % 10 != 0) or  # signal label
+    if ((original_label % 10 != 0) or  # signal labels end in '1'
         (not convert_interference_to_noise)):
         return original_label
 
     return 0
 
+
 def getSPLMatrix(file_path: str, start_second: int=0, end_second: int=MAX_SECONDS) -> np.ndarray:
     '''
     Convert data in a 'NVSPL' file to a set of vectors (one vector per line) that represent sound
     pressue levels; in particular, the average energy in different 1/3 octave frequency bands. It
-    is assuemd that each file contains measurements every second for an entire day.
+    is assumed that each file contains measurements every second for an entire day.
 
     :param file_path: Absolute path to the NVSPL file.
     :param start_second: The second to start extracting data (inclusive), where 0 represents
@@ -64,7 +65,9 @@ def getSPLMatrix(file_path: str, start_second: int=0, end_second: int=MAX_SECOND
 
     data_matrix = _processTextLines(file_path, start_second, end_second)
 
-    assert data_matrix.shape[0] == VECT_LENGTH, "Unexpected vector length: {}.".format(data_matrix.shape[0])
+    assert data_matrix.shape[0] == VECT_DIM, (
+        "Unexpected vector length: {}.".format(data_matrix.shape[0]))
+
     if data_matrix.shape[1] != end_second - start_second:
         print("Warning: only extracted {} seconds of data.".format(data_matrix.shape[1]))
 
@@ -73,20 +76,20 @@ def getSPLMatrix(file_path: str, start_second: int=0, end_second: int=MAX_SECOND
 
 def getTruthArray(file_path: str) -> Tuple[np.ndarray, int, int]:
     '''
-    Convert data in a 'TRUTH' file to an array (one element per line). It is assuemd that each file
+    Convert data in a 'TRUTH' file to an array (one element per line). It is assumed that each file
     follows the format *h<start_hour>-<end_hour>.txt, in order to properly parse the times
     represented by the file.
 
     :param file_path: Absolute path to the TRUTH file.
 
     :return: Tuple with the following elements:
-        - Array of truth labels
+        - Array of truth labels.
         - Starting time (in seconds) associated with the returned array.
         - Ending time (in seconds) associated with the returned array.
     '''
 
     file_name = os.path.basename(file_path)
-    hour_strings = file_name.split('.')[0].split('h')[-1].split('-')
+    hour_strings = file_name.split(".txt")[0].split('h')[-1].split('-')
     start_second, end_second = (3600 * float(val) for val in hour_strings)
     truth_array = _processTextLines(file_path, 0, end_second - start_second).flatten().astype(int)
 
@@ -99,15 +102,15 @@ def getTruthArray(file_path: str) -> Tuple[np.ndarray, int, int]:
 def getTrainEvents(train_file_path: str, data_file_path: str,
                    convert_interference_to_noise: bool) -> Dict[int, List[np.ndarray]]:
     '''
-    Extracts events of intrest (typically to use for training), each consisting of a sequence of
-    vectors (columns of a matrix), from a vector sequence stored at ``data_file_path``, using the
-    events parameters stored in ``train_file_path``.
+    Extracts events of intrest (typically to use for classifier training), each consisting of a
+    sequence of vectors (columns of a matrix), from a vector sequence stored at ``data_file_path``,
+    using the events parameters stored in ``train_file_path``.
 
     :param train_file_path: Absolute path to the file containing training event parameters.
     :param data_file_path: Absolute path to the NVSPL data file.
 
-    :return Dictionary with keys that are class labels and values that are lists of vector sequences
-        representing tabulated events.
+    :return: Dictionary with keys that are class labels and values that are lists of matrices
+        representing events associated with that class.
     '''
 
     data_matrix = getSPLMatrix(data_file_path)
@@ -120,4 +123,4 @@ def getTrainEvents(train_file_path: str, data_file_path: str,
         label = _getLabel(label, convert_interference_to_noise)
         event_dict[label].append(event_matrix)
 
-    return event_dict
+    return dict(event_dict)

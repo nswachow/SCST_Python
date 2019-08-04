@@ -7,6 +7,11 @@ from test_tools import getTrainDict, getTestSequence
 
 
 def testKerasSequenceClassifier():
+    '''
+    Use randomly generated vector sequences to evaluate the ``TransientKerasClassifier`` class. The
+    output of the ``classify`` method isn't explicitly evaluated, but rather, this test is to just
+    ensure this class can properly process unknown data.
+    '''
 
     # Define parameters
     EVAL_PERCENT = 0.33

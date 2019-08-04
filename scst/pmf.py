@@ -7,7 +7,7 @@ from typing import Tuple, Dict, Iterable
 class ContiguousPMF:
     '''
     Implements a probability mass function for a discrete random variable whose realizations are
-    integers on the interval [0, ``max_value``] where ``max_value`` is an input. The user also
+    integers on the interval [0, ``max_value``], where ``max_value`` is an input. The user also
     specifies a minimum probability for all integers in the interval, such that the probability
     will be at least this large for all values, even those that don't appear in the array of
     training data.
@@ -17,9 +17,9 @@ class ContiguousPMF:
         '''
         :param train_array: Array of realizations that this PMF represents, from which the mass
             function shall be computed.
-        :param min_prob: The minimum probabilty assigned to each value \in [0, max_value].
+        :param min_prob: The minimum probability assigned to each value \in [0, max_value].
         :param max_value: The maximum value associated with this PMF, which needs to be specified
-            since train_array may not contain any realizations of this values, or others on the
+            since ``train_array`` may not contain any realizations of this values, or others on the
             relevant interval.
         '''
 
@@ -34,7 +34,6 @@ class ContiguousPMF:
         value_array = np.arange(max_value + 1)
         self._prob_dict = ContiguousPMF._getProbabilityDict(train_array, value_array, min_prob)
         self._max_value = max_value
-
         self._entropy = None  # Compute lazily
 
     def __call__(self, value: int) -> float:
@@ -73,7 +72,7 @@ class ContiguousPMF:
     def _getProbabilityDict(train_array: np.ndarray, value_array: np.ndarray,
                             min_prob: float) -> Dict[int, float]:
         '''
-        Helper function to allow for generating probabilites for this class and derived classes
+        Helper function to allow for generating probabilites for this class and derived classes.
         '''
 
         prob_dict = defaultdict(lambda: 0.0)  # zero probability where there is no mass
@@ -87,11 +86,10 @@ class ContiguousPMF:
         return dict(prob_dict)
 
     @staticmethod
-    def _enforceMinProb(prob_dict: defaultdict, value_array: np.ndarray,
-                        min_prob: float) -> None:
+    def _enforceMinProb(prob_dict: defaultdict, value_array: np.ndarray, min_prob: float) -> None:
         '''
-        Enforce minimum probability constraint by setting probabilities < min_prob to min_prob
-        and rescaling the remaining probabilties so the mass sums to one.
+        Enforce minimum probability constraint by setting probabilities < min_prob to min_prob and
+        rescaling the remaining probabilities so the mass sums to one.
         '''
 
         values_to_normalize = []
@@ -117,19 +115,19 @@ class ContiguousPMF:
 
 class JointContiguousPMF(ContiguousPMF):
     '''
-    Implements a joint probability mass function that functions similarly to ContiguousPMF, but
+    Implements a joint probability mass function that behaves similarly to ContiguousPMF, but
     represents the joint distribution of two random variables. Can be used to obtain probabilities
     when called with a pair of values. Minimum probabilities aren't enforced in this case, since it
-    causes discrepencies between the marginal and joint distributions.
+    causes discrepancies between the marginal and joint distributions.
     '''
 
     def __init__(self, x_train_array: np.ndarray, y_train_array: np.ndarray, max_value: int):
         '''
         :param x_train_array, y_train_array: Arrays of realizations for the first and second
             dimension that this joint PMF represents, from which the mass function shall be
-            computed. Elements of each array have one-to-one correspondance, i.e., element ``ii``
-            of each array are assumed to have been realized simultaneously. These arrays must have
-            the same length.
+            computed. Elements of each array have one-to-one correspondence, i.e., the ``ii``
+            element of both arrays are assumed to have been realized simultaneously. These arrays
+            must have the same length.
         :param max_value: See ContiguousPMF.__init__.
         '''
 
@@ -219,7 +217,8 @@ class ConditionalContiguousPMF:
         :return: Conditional probability of the ``value`` input given the ``depend_values``.
         '''
 
-        # Enforce structure on depend_values
+        # Enforce structure on depend_values so we don't return a uniform probability for invalid
+        # inputs
         assert len(depend_values) == self._num_depend
         depend_array = np.array(depend_values)
         assert np.all(depend_array >= 0) and np.all(depend_array <= self._max_value)

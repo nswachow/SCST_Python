@@ -23,7 +23,7 @@ def getTrainDict(obs_per_event: int, events_per_class: int, input_dim: int,
     :param events_per_class: The number of training events per class.
     :param input_dim: The dimensionality of the vectors in each sequence.
     :param a_low, a_high: Lower and upper bounds on the values of the 'A' class, respectively.
-    :param b_low, b_high: Lower and upper bounds on the values of the 'A' class, respectively.
+    :param b_low, b_high: Lower and upper bounds on the values of the 'B' class, respectively.
     :param noise_low, noise_high: Lower and upper bounds on the values of the noise class (with
         label "0"), respectively.
 
@@ -54,7 +54,7 @@ def getTestSequence(input_dim: int, a_low: float=DEFAULT_A_LOW, a_high: float=DE
 
     :param input_dim: The dimensionality of the vectors in each sequence.
     :param a_low, a_high: Lower and upper bounds on the values of the 'A' class, respectively.
-    :param b_low, b_high: Lower and upper bounds on the values of the 'A' class, respectively.
+    :param b_low, b_high: Lower and upper bounds on the values of the 'B' class, respectively.
     :param noise_low, noise_high: Lower and upper bounds on the values of the noise class (with
         label "0"), respectively.
 
@@ -86,7 +86,7 @@ def getTestSequence(input_dim: int, a_low: float=DEFAULT_A_LOW, a_high: float=DE
 
 def exceptionTest(test_func: Callable, except_type: Exception):
     '''
-    Used in unit tests to ensure a given function appropriate throws an acception of a specific
+    Used in unit tests to ensure a given function appropriately throws an acception of a specific
     type.
     '''
 
